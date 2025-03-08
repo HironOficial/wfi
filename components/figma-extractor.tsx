@@ -28,20 +28,20 @@ export default function FigmaExtractor() {
       {!project ? (
         <Card>
           <CardContent className="pt-6">
-            <Tabs defaultValue="api-key" className="w-full">
+            <Tabs defaultValue="project-url" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="api-key">Connect with API Key</TabsTrigger>
                 <TabsTrigger value="project-url">Use Project URL</TabsTrigger>
+                <TabsTrigger value="api-key">Connect with API Key</TabsTrigger>
               </TabsList>
-              <TabsContent value="api-key" className="mt-4">
-                <ApiKeyForm onProjectLoaded={handleProjectLoaded} onError={handleError} setIsLoading={setIsLoading} />
-              </TabsContent>
               <TabsContent value="project-url" className="mt-4">
                 <ProjectUrlForm
                   onProjectLoaded={handleProjectLoaded}
                   onError={handleError}
                   setIsLoading={setIsLoading}
                 />
+              </TabsContent>
+              <TabsContent value="api-key" className="mt-4">
+                <ApiKeyForm onProjectLoaded={handleProjectLoaded} onError={handleError} setIsLoading={setIsLoading} />
               </TabsContent>
             </Tabs>
 

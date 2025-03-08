@@ -1,5 +1,6 @@
-export type AssetType = "IMAGES" | "VECTORS" | "TEXT" | "COMPONENTS" | "FRAMES"
+export type AssetType = "IMAGES" | "VECTORS" | "TEXT" | "COMPONENTS" | "FRAMES" | "FONTS"
 export type FileFormat = "PNG" | "SVG" | "JPEG" | "PDF" | "WEBP"
+export type TextExportOption = "IMAGE" | "FONT" | "BOTH"
 
 export interface FigmaProject {
   id: string
@@ -23,6 +24,11 @@ export interface FigmaAsset {
   format: FileFormat
   pageId: string
   pageName: string
+  fontFamily?: string
+  fontStyle?: string
+  fontSize?: number
+  fontWeight?: number
+  metadata?: Record<string, any>
 }
 
 export interface DownloadSettings {
@@ -31,6 +37,8 @@ export interface DownloadSettings {
   preserveLayers: boolean
   includeInZip: boolean
   prefix?: string
+  textExportOption: TextExportOption
+  namePrefix?: string
 }
 
 // New types to fix the 'any' errors
@@ -39,6 +47,24 @@ export interface FigmaNode {
   name: string
   type: string
   children?: FigmaNode[]
+  geometryType?: string
+  vectorPaths?: Array<{
+    windingRule: string
+    data: string
+  }>
+  vectorNetwork?: {
+    vertices: Array<{ x: number; y: number; [key: string]: unknown }>
+    segments: Array<{ start: number; end: number; [key: string]: unknown }>
+    [key: string]: unknown
+  }
+  style?: {
+    fontFamily?: string
+    fontPostScriptName?: string
+    fontWeight?: number
+    fontSize?: number
+    italic?: boolean
+    [key: string]: unknown
+  }
   [key: string]: unknown
 }
 
@@ -69,5 +95,11 @@ export interface FigmaImagesResponse {
     [key: string]: string
   }
   [key: string]: unknown
+}
+
+export interface FigmaFont {
+  family: string
+  style: string
+  url?: string
 }
 

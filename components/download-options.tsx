@@ -4,7 +4,8 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import type { FileFormat, DownloadSettings } from "@/types/figma"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import type { FileFormat, DownloadSettings, TextExportOption } from "@/types/figma"
 
 interface DownloadOptionsProps {
   fileFormat: FileFormat
@@ -12,6 +13,8 @@ interface DownloadOptionsProps {
   onChange: (settings: DownloadSettings) => void
   selectedCount: number
   totalCount: number
+  hasTextAssets: boolean
+  hasFontAssets: boolean
 }
 
 export default function DownloadOptions({
@@ -20,8 +23,10 @@ export default function DownloadOptions({
   onChange,
   selectedCount,
   totalCount,
+  hasTextAssets,
+  hasFontAssets,
 }: DownloadOptionsProps) {
-  const updateSettings = (key: keyof DownloadSettings, value: string | number | boolean) => {
+  const updateSettings = (key: keyof DownloadSettings, value: string | number | boolean | TextExportOption) => {
     onChange({
       ...settings,
       [key]: value,
@@ -75,6 +80,34 @@ export default function DownloadOptions({
             onCheckedChange={(checked) => updateSettings("preserveLayers", checked)}
           />
           <Label htmlFor="preserveLayers">Preserve original Figma layers</Label>
+        </div>
+      )}
+
+      {hasTextAssets && (
+        <div className="space-y-2">
+          <Label>Text Export Options</Label>
+          <RadioGroup
+            value={settings.textExportOption}
+            onValueChange={(value) => updateSettings("textExportOption", value as TextExportOption)}
+            className="space-y-2"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="IMAGE" id="text-image" />
+              <Label htmlFor="text-image">Export text as images</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="FONT" id="text-font" disabled={!hasFontAssets} />
+              <Label htmlFor="text-font" className={!hasFontAssets ? "text-muted-foreground" : ""}>
+                Export fonts only {!hasFontAssets && "(No fonts detected)"}
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="BOTH" id="text-both" disabled={!hasFontAssets} />
+              <Label htmlFor="text-both" className={!hasFontAssets ? "text-muted-foreground" : ""}>
+                Export both text images and fonts
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
       )}
 

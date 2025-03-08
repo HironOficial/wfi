@@ -21,7 +21,7 @@ export default function DownloadOptions({
   selectedCount,
   totalCount,
 }: DownloadOptionsProps) {
-  const updateSettings = (key: keyof DownloadSettings, value: any) => {
+  const updateSettings = (key: keyof DownloadSettings, value: string | number | boolean) => {
     onChange({
       ...settings,
       [key]: value,

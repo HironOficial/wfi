@@ -1,4 +1,12 @@
-import type { FigmaProject, FigmaPage, FigmaAsset, AssetType, FileFormat, DownloadSettings } from "@/types/figma"
+import type {
+  FigmaProject,
+  FigmaPage,
+  FigmaAsset,
+  AssetType,
+  FileFormat,
+  DownloadSettings,
+  FigmaFileResponse,
+} from "@/types/figma"
 import JSZip from "jszip"
 import FileSaver from "file-saver"
 
@@ -23,10 +31,10 @@ export async function fetchFigmaProject(fileId: string, apiKey: string): Promise
       throw new Error(error.message || "Failed to fetch Figma project")
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as FigmaFileResponse
 
     // Extract pages from the document
-    const pages: FigmaPage[] = data.document.children.map((page: any) => ({
+    const pages: FigmaPage[] = data.document.children.map((page) => ({
       id: page.id,
       name: page.name,
     }))

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import type { AssetType, FileFormat, FigmaAsset } from "@/types/figma"
+import type { AssetType, FileFormat, FigmaAsset, FigmaNode, FigmaNodesResponse } from "@/types/figma"
 
 export async function POST(request: NextRequest) {
   const apiKey = request.headers.get("X-Figma-Token")
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const nodesData = await nodesResponse.json()
+    const nodesData = (await nodesResponse.json()) as FigmaNodesResponse
 
     // Extract asset IDs based on asset types
     const assetIds: string[] = []
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       const pageName = page.document.name
 
       // Function to recursively extract assets
-      function extractAssets(node: any) {
+      function extractAssets(node: FigmaNode) {
         // Check if this node matches the requested asset types
         let isMatch = false
 

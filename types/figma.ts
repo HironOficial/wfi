@@ -33,3 +33,41 @@ export interface DownloadSettings {
   prefix?: string
 }
 
+// New types to fix the 'any' errors
+export interface FigmaNode {
+  id: string
+  name: string
+  type: string
+  children?: FigmaNode[]
+  [key: string]: unknown
+}
+
+export interface FigmaDocument {
+  name: string
+  children: FigmaNode[]
+  [key: string]: unknown
+}
+
+export interface FigmaFileResponse {
+  name: string
+  lastModified: string
+  document: FigmaDocument
+  [key: string]: unknown
+}
+
+export interface FigmaNodesResponse {
+  nodes: {
+    [key: string]: {
+      document?: FigmaNode
+      [key: string]: unknown
+    }
+  }
+}
+
+export interface FigmaImagesResponse {
+  images: {
+    [key: string]: string
+  }
+  [key: string]: unknown
+}
+

@@ -14,7 +14,6 @@ export default function AssetTypeFilter({ selectedTypes, onChange }: AssetTypeFi
     { value: "IMAGES", label: "Images" },
     { value: "VECTORS", label: "Vectors" },
     { value: "TEXT", label: "Text elements" },
-    { value: "FONTS", label: "Fonts" },
     { value: "COMPONENTS", label: "Components" },
     { value: "FRAMES", label: "Frames" },
   ]

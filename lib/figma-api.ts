@@ -109,17 +109,18 @@ export async function downloadAssets(
   assets: FigmaAsset[],
   format: FileFormat,
   settings: DownloadSettings,
+  onProgress?: (progress: number) => void,
 ): Promise<void> {
   try {
     // Filter assets based on text export option
     let assetsToDownload = [...assets]
 
     if (settings.textExportOption === "FONT") {
-      // Only include font assets
-      assetsToDownload = assets.filter((asset) => asset.type === "FONTS" || (asset.type === "TEXT" && asset.fontFamily))
+      // Only include text assets with fonts
+      assetsToDownload = assets.filter((asset) => asset.type === "TEXT" && asset.fontFamily)
     } else if (settings.textExportOption === "IMAGE") {
-      // Exclude font-only assets
-      assetsToDownload = assets.filter((asset) => asset.type !== "FONTS")
+      // Include all assets except font-only ones
+      assetsToDownload = assets
     }
 
     // Apply name prefix filter if specified
@@ -128,9 +129,9 @@ export async function downloadAssets(
     }
 
     if (settings.includeInZip) {
-      await downloadAsZip(assetsToDownload, format, settings)
+      await downloadAsZip(assetsToDownload, format, settings, onProgress)
     } else {
-      await downloadIndividually(assetsToDownload, settings)
+      await downloadIndividually(assetsToDownload, settings, onProgress)
     }
   } catch (error) {
     console.error("Error downloading assets:", error)
@@ -139,7 +140,12 @@ export async function downloadAssets(
 }
 
 // Download assets as a ZIP file
-async function downloadAsZip(assets: FigmaAsset[], format: FileFormat, settings: DownloadSettings): Promise<void> {
+async function downloadAsZip(
+  assets: FigmaAsset[], 
+  format: FileFormat, 
+  settings: DownloadSettings,
+  onProgress?: (progress: number) => void,
+): Promise<void> {
   const zip = new JSZip()
   const prefix = settings.prefix || ""
 
@@ -151,13 +157,27 @@ async function downloadAsZip(assets: FigmaAsset[], format: FileFormat, settings:
   const componentsFolder = zip.folder("components")
   const framesFolder = zip.folder("frames")
 
+  // Track unique fonts to avoid duplicates
+  const processedFonts = new Set<string>()
+  let completedAssets = 0
+  const totalAssets = assets.length
+
   // Add each asset to the ZIP
   for (const asset of assets) {
     try {
-      // Skip font assets that don't have URLs
-      if (asset.type === "FONTS" && !asset.url) {
-        // Create a CSS file for the font information instead
-        if (asset.fontFamily) {
+      // Handle font files for text assets
+      if (asset.type === "TEXT" && asset.fontFamily && settings.textExportOption !== "IMAGE") {
+        const fontId = `${asset.fontFamily}-${asset.fontStyle}-${asset.fontWeight}`
+        if (!processedFonts.has(fontId) && asset.url) {
+          processedFonts.add(fontId)
+          
+          // Download the font file
+          const response = await fetch(asset.url)
+          const blob = await response.blob()
+          const fontFileName = `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.ttf`
+          fontsFolder?.file(fontFileName, blob)
+          
+          // Create font CSS file
           const fontInfo = `
 /* Font Information
 Family: ${asset.fontFamily}
@@ -169,16 +189,15 @@ Weight: ${asset.fontWeight || "Normal"}
   font-family: '${asset.fontFamily}';
   font-style: ${asset.fontStyle?.toLowerCase() || "normal"};
   font-weight: ${asset.fontWeight || 400};
-  /* src: url('path-to-font-file') format('woff2'); */
+  src: url('./${fontFileName}') format('truetype');
 }
 `
-          fontsFolder?.file(`${prefix}${asset.name}.css`, fontInfo)
+          fontsFolder?.file(`${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.css`, fontInfo)
         }
-        continue
       }
 
       // For assets with URLs, fetch and add to ZIP
-      if (asset.url) {
+      if (asset.url && (settings.textExportOption !== "FONT" || asset.type !== "TEXT")) {
         const response = await fetch(asset.url)
         const blob = await response.blob()
         const fileName = `${prefix}${asset.name}.${format.toLowerCase()}`
@@ -204,6 +223,9 @@ Weight: ${asset.fontWeight || "Normal"}
             zip.file(fileName, blob)
         }
       }
+
+      completedAssets++
+      onProgress?.(Math.round((completedAssets / totalAssets) * 100))
     } catch (error) {
       console.error(`Error adding ${asset.name} to ZIP:`, error)
     }
@@ -215,15 +237,31 @@ Weight: ${asset.fontWeight || "Normal"}
 }
 
 // Download assets individually
-async function downloadIndividually(assets: FigmaAsset[], settings: DownloadSettings): Promise<void> {
+async function downloadIndividually(
+  assets: FigmaAsset[], 
+  settings: DownloadSettings,
+  onProgress?: (progress: number) => void,
+): Promise<void> {
   const prefix = settings.prefix || ""
+  const processedFonts = new Set<string>()
+  let completedAssets = 0
+  const totalAssets = assets.length
 
   for (const asset of assets) {
     try {
-      // Skip font assets that don't have URLs
-      if (asset.type === "FONTS" && !asset.url) {
-        // Create a CSS file for the font information instead
-        if (asset.fontFamily) {
+      // Handle font files for text assets
+      if (asset.type === "TEXT" && asset.fontFamily && settings.textExportOption !== "IMAGE") {
+        const fontId = `${asset.fontFamily}-${asset.fontStyle}-${asset.fontWeight}`
+        if (!processedFonts.has(fontId) && asset.url) {
+          processedFonts.add(fontId)
+          
+          // Download the font file
+          const response = await fetch(asset.url)
+          const blob = await response.blob()
+          const fontFileName = `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.ttf`
+          FileSaver.saveAs(blob, fontFileName)
+          
+          // Create font CSS file
           const fontInfo = `
 /* Font Information
 Family: ${asset.fontFamily}
@@ -235,22 +273,24 @@ Weight: ${asset.fontWeight || "Normal"}
   font-family: '${asset.fontFamily}';
   font-style: ${asset.fontStyle?.toLowerCase() || "normal"};
   font-weight: ${asset.fontWeight || 400};
-  /* src: url('path-to-font-file') format('woff2'); */
+  src: url('./${fontFileName}') format('truetype');
 }
 `
-          const blob = new Blob([fontInfo], { type: "text/css" })
-          FileSaver.saveAs(blob, `${prefix}${asset.name}.css`)
+          const cssBlob = new Blob([fontInfo], { type: "text/css" })
+          FileSaver.saveAs(cssBlob, `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.css`)
         }
-        continue
       }
 
       // For assets with URLs, fetch and download
-      if (asset.url) {
+      if (asset.url && (settings.textExportOption !== "FONT" || asset.type !== "TEXT")) {
         const response = await fetch(asset.url)
         const blob = await response.blob()
         const fileName = `${prefix}${asset.name}.${asset.format.toLowerCase()}`
         FileSaver.saveAs(blob, fileName)
       }
+
+      completedAssets++
+      onProgress?.(Math.round((completedAssets / totalAssets) * 100))
     } catch (error) {
       console.error(`Error downloading ${asset.name}:`, error)
     }

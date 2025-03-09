@@ -74,8 +74,8 @@ export async function POST(request: NextRequest) {
           isMatch =
             isMatch ||
             node.geometryType === "VECTOR" ||
-            (node.vectorPaths && node.vectorPaths.length > 0) ||
-            (node.vectorNetwork && Object.keys(node.vectorNetwork).length > 0)
+            (node.vectorPaths !== undefined && node.vectorPaths.length > 0) ||
+            (node.vectorNetwork !== undefined && Object.keys(node.vectorNetwork).length > 0)
         }
 
         if (requestedAssetTypes.includes("IMAGES") && node.type === "IMAGE") isMatch = true
@@ -195,41 +195,92 @@ export async function POST(request: NextRequest) {
 
     const imagesData = await imagesResponse.json()
 
+    // Get font files for text elements
+    const textAssets = assetIds.filter(id => assetTypesRecord[id] === "TEXT" && assetFonts[id]?.fontFamily)
+    const fontUrls: Record<string, string> = {}
+
+    if (textAssets.length > 0) {
+      try {
+        // First get the file styles to find font references
+        const stylesResponse = await fetch(
+          `https://api.figma.com/v1/files/${fileId}/styles`,
+          {
+            headers: {
+              "X-Figma-Token": apiKey,
+            },
+          }
+        )
+
+        if (stylesResponse.ok) {
+          const stylesData = await stylesResponse.json()
+          const textStyles = stylesData.meta.styles.filter((style: any) => style.style_type === "TEXT")
+
+          // For each text asset, try to find its font
+          for (const assetId of textAssets) {
+            const fontInfo = assetFonts[assetId]
+            if (fontInfo?.fontFamily) {
+              // Try to find matching style
+              const matchingStyle = textStyles.find((style: any) => {
+                const styleDescription = style.description || ""
+                return styleDescription.includes(fontInfo.fontFamily) &&
+                  (!fontInfo.fontStyle || styleDescription.includes(fontInfo.fontStyle)) &&
+                  (!fontInfo.fontWeight || styleDescription.includes(fontInfo.fontWeight.toString()))
+              })
+
+              if (matchingStyle) {
+                // Get the font file URL
+                const fontResponse = await fetch(
+                  `https://api.figma.com/v1/files/${fileId}/styles/${matchingStyle.key}/font`,
+                  {
+                    headers: {
+                      "X-Figma-Token": apiKey,
+                    },
+                  }
+                )
+
+                if (fontResponse.ok) {
+                  const fontData = await fontResponse.json()
+                  if (fontData.url) {
+                    fontUrls[assetId] = fontData.url
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching font files:", error)
+      }
+    }
+
     // Construct the final assets array
     const assets: FigmaAsset[] = []
 
     for (const assetId of assetIds) {
-      // For font assets, we don't need image URLs
-      if (assetId.startsWith("font-")) {
-        assets.push({
-          id: assetId,
-          name: assetNames[assetId],
-          type: assetTypesRecord[assetId],
-          url: "", // No URL for fonts
-          format: format as FileFormat,
-          pageId: assetPages[assetId].id,
-          pageName: assetPages[assetId].name,
-          fontFamily: assetFonts[assetId]?.fontFamily,
-          fontStyle: assetFonts[assetId]?.fontStyle,
-          fontWeight: assetFonts[assetId]?.fontWeight,
-          fontSize: assetFonts[assetId]?.fontSize,
-        })
-      } else if (imagesData.images[assetId]) {
-        assets.push({
-          id: assetId,
-          name: assetNames[assetId],
-          type: assetTypesRecord[assetId],
-          url: imagesData.images[assetId],
-          thumbnailUrl: imagesData.images[assetId],
-          format: format as FileFormat,
-          pageId: assetPages[assetId].id,
-          pageName: assetPages[assetId].name,
-          fontFamily: assetFonts[assetId]?.fontFamily,
-          fontStyle: assetFonts[assetId]?.fontStyle,
-          fontWeight: assetFonts[assetId]?.fontWeight,
-          fontSize: assetFonts[assetId]?.fontSize,
-        })
+      const asset: FigmaAsset = {
+        id: assetId,
+        name: assetNames[assetId],
+        type: assetTypesRecord[assetId],
+        url: imagesData.images[assetId] || fontUrls[assetId] || "",
+        format: format as FileFormat,
+        pageId: assetPages[assetId].id,
+        pageName: assetPages[assetId].name,
       }
+
+      // Add font information if available
+      if (assetFonts[assetId]) {
+        asset.fontFamily = assetFonts[assetId].fontFamily
+        asset.fontStyle = assetFonts[assetId].fontStyle
+        asset.fontWeight = assetFonts[assetId].fontWeight
+        asset.fontSize = assetFonts[assetId].fontSize
+      }
+
+      // Add thumbnail URL for non-font assets
+      if (imagesData.images[assetId]) {
+        asset.thumbnailUrl = imagesData.images[assetId]
+      }
+
+      assets.push(asset)
     }
 
     return NextResponse.json(assets)

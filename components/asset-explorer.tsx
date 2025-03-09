@@ -17,6 +17,9 @@ import DownloadOptions from "@/components/download-options"
 import PrefixFilter from "@/components/prefix-filter"
 import type { FigmaProject, FigmaAsset, AssetType, FileFormat, DownloadSettings } from "@/types/figma"
 import { fetchAssets, downloadAssets } from "@/lib/figma-api"
+import { useToast } from "@/hooks/use-toast"
+import { KofiButton } from "@/components/kofi-button"
+import { Progress } from "@/components/ui/progress"
 
 interface AssetExplorerProps {
   project: FigmaProject
@@ -24,20 +27,21 @@ interface AssetExplorerProps {
 }
 
 export default function AssetExplorer({ project, onReset }: AssetExplorerProps) {
+  const { toast } = useToast()
   const [selectedPages, setSelectedPages] = useState<string[]>([])
   const [selectedAssetTypes, setSelectedAssetTypes] = useState<AssetType[]>([
     "IMAGES",
     "VECTORS",
     "TEXT",
     "COMPONENTS",
-    "FRAMES",
-    "FONTS",
+    "FRAMES"
   ])
   const [fileFormat, setFileFormat] = useState<FileFormat>("PNG")
   const [assets, setAssets] = useState<FigmaAsset[]>([])
   const [filteredAssets, setFilteredAssets] = useState<FigmaAsset[]>([])
   const [selectedAssets, setSelectedAssets] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState("select")
   const [prefixFilter, setPrefixFilter] = useState("")
   const [prefixFilterEnabled, setPrefixFilterEnabled] = useState(false)
@@ -112,11 +116,32 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
     if (selectedAssets.length === 0) return
 
     const assetsToDownload = assets.filter((asset) => selectedAssets.includes(asset.id))
+    setDownloadProgress(0)
 
     try {
-      await downloadAssets(assetsToDownload, fileFormat, downloadSettings)
+      await downloadAssets(
+        assetsToDownload, 
+        fileFormat, 
+        downloadSettings,
+        (progress) => setDownloadProgress(progress)
+      )
+      
+      // Show donation toast after successful download
+      toast({
+        title: "Download Complete! 🎉",
+        description: "If you find our tools helpful, consider supporting us with a coffee!",
+        action: <KofiButton variant="outline" size="sm" showText={false} />,
+        duration: 10000, // Show for 10 seconds
+      })
     } catch (error) {
       console.error("Failed to download assets:", error)
+      toast({
+        title: "Download Failed",
+        description: "An error occurred while downloading the assets.",
+        variant: "destructive",
+      })
+    } finally {
+      setDownloadProgress(null)
     }
   }
 
@@ -307,9 +332,29 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
               hasFontAssets={hasFontAssets}
             />
 
-            <Button onClick={handleDownload} className="w-full mt-4" disabled={selectedAssets.length === 0}>
-              <Download className="mr-2 h-4 w-4" />
-              Download {selectedAssets.length} Assets
+            {downloadProgress !== null && (
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Downloading assets...</span>
+                  <span>{downloadProgress}%</span>
+                </div>
+                <Progress value={downloadProgress} className="h-2" />
+              </div>
+            )}
+
+            <Button 
+              onClick={handleDownload} 
+              className="w-full mt-4" 
+              disabled={selectedAssets.length === 0 || downloadProgress !== null}
+            >
+              {downloadProgress !== null ? (
+                <>Downloading {selectedAssets.length} Assets...</>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download {selectedAssets.length} Assets
+                </>
+              )}
             </Button>
           </TabsContent>
         </Tabs>

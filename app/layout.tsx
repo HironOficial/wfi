@@ -4,6 +4,8 @@ import { Inter } from "next/font/google"
 import type { Metadata } from "next"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toast-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -18,11 +20,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen flex flex-col`}>
-        <SiteHeader />
-        <div className="flex-1">{children}</div>
-        <SiteFooter />
+        <ThemeProvider>
+          <SiteHeader />
+          <div className="flex-1">{children}</div>
+          <SiteFooter />
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   )

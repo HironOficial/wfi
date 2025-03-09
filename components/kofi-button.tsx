@@ -23,7 +23,7 @@ export function KofiButton({ variant = "default", size = "default", showText = t
           <Button
             variant={variant}
             size={size}
-            onClick={() => window.open("https://ko-fi.com/opennexus", "_blank")}
+            onClick={() => window.open("https://ko-fi.com/hiron", "_blank")}
             className="gap-2"
           >
             <Coffee className={size === "icon" ? "h-4 w-4" : "h-4 w-4 mr-1"} />
@@ -31,7 +31,7 @@ export function KofiButton({ variant = "default", size = "default", showText = t
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Help keep our tools free by buying us a coffee!</p>
+          <p>Help by buying us a coffee!</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

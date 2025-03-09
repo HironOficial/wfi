@@ -99,8 +99,8 @@ export async function fetchAssets(
     const nodesResponse = await fetch(
       `https://api.figma.com/v1/files/${fileId}/nodes?ids=${pageIds.join(",")}&geometry=paths`,
       {
-        headers: {
-          "X-Figma-Token": apiKey,
+      headers: {
+        "X-Figma-Token": apiKey,
         },
       },
     )
@@ -306,8 +306,14 @@ async function downloadAsZip(
 ): Promise<void> {
   // Create a new worker instance
   const worker = createDownloadWorker()
+  if (!worker) throw new Error('Failed to create worker')
 
   return new Promise((resolve, reject) => {
+    if (!worker) {
+      reject(new Error('Failed to create worker'))
+      return
+    }
+
     worker.onmessage = (e) => {
       if (e.data.type === 'progress') {
         onProgress?.(e.data.progress)
@@ -334,7 +340,8 @@ async function downloadAsZip(
         format: asset.format,
         fontFamily: asset.fontFamily,
         fontStyle: asset.fontStyle,
-        fontWeight: asset.fontWeight
+        fontWeight: asset.fontWeight,
+        fontSize: asset.fontSize
       })),
       prefix: settings.prefix || "",
       format: format,
@@ -356,35 +363,48 @@ async function downloadIndividually(
 
   for (const asset of assets) {
     try {
-      // Handle font files for text assets
+      // Handle font information for text assets
       if (asset.type === "TEXT" && asset.fontFamily && settings.textExportOption !== "IMAGE") {
         const fontId = `${asset.fontFamily}-${asset.fontStyle}-${asset.fontWeight}`
-        if (!processedFonts.has(fontId) && asset.url) {
+        if (!processedFonts.has(fontId)) {
           processedFonts.add(fontId)
           
-          // Download the font file
-          const response = await fetch(asset.url)
-          const blob = await response.blob()
-          const fontFileName = `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.ttf`
-          FileSaver.saveAs(blob, fontFileName)
-          
-          // Create font CSS file
+          // Create font information file
           const fontInfo = `
-/* Font Information
+/*
+Font Information
+---------------
 Family: ${asset.fontFamily}
 Style: ${asset.fontStyle || "Regular"}
 Weight: ${asset.fontWeight || "Normal"}
-*/
+Size: ${asset.fontSize || "Default"}px
+
+To use this font in your project:
+1. Download the font from one of these sources:
+   - Google Fonts: https://fonts.google.com/
+   - Adobe Fonts: https://fonts.adobe.com/
+   - Font Squirrel: https://www.fontsquirrel.com/
+   - MyFonts: https://www.myfonts.com/
+
+2. Once you have the font file, you can use this CSS:
 
 @font-face {
   font-family: '${asset.fontFamily}';
   font-style: ${asset.fontStyle?.toLowerCase() || "normal"};
   font-weight: ${asset.fontWeight || 400};
-  src: url('./${fontFileName}') format('truetype');
+  src: url('path-to-your-font-file.ttf') format('truetype');
 }
+
+.${asset.fontFamily.toLowerCase().replace(/[^a-z0-9]/g, '-')} {
+  font-family: '${asset.fontFamily}';
+  font-style: ${asset.fontStyle?.toLowerCase() || "normal"};
+  font-weight: ${asset.fontWeight || 400};
+  font-size: ${asset.fontSize || "inherit"}px;
+}
+*/
 `
-          const cssBlob = new Blob([fontInfo], { type: "text/css" })
-          FileSaver.saveAs(cssBlob, `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.css`)
+          const infoBlob = new Blob([fontInfo], { type: "text/plain" })
+          FileSaver.saveAs(infoBlob, `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}-info.txt`)
         }
       }
 

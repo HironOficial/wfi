@@ -12,22 +12,13 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      config.output.globalObject = 'self'
-      config.module.rules.push({
-        test: /\.worker\.(js|ts)$/,
-        loader: 'worker-loader',
-        options: {
-          filename: 'static/[hash].worker.js',
-          publicPath: '/_next/',
-        },
-      })
-    }
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      }
     }
     return config
-  },
+  }
 }
 
 module.exports = nextConfig 

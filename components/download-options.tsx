@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { FileFormat, DownloadSettings, TextExportOption } from "@/types/figma"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface DownloadOptionsProps {
   fileFormat: FileFormat
@@ -15,6 +16,7 @@ interface DownloadOptionsProps {
   totalCount: number
   hasTextAssets: boolean
   hasFontAssets: boolean
+  hideOptions?: boolean
 }
 
 export default function DownloadOptions({
@@ -25,109 +27,83 @@ export default function DownloadOptions({
   totalCount,
   hasTextAssets,
   hasFontAssets,
+  hideOptions = false
 }: DownloadOptionsProps) {
-  const updateSettings = (key: keyof DownloadSettings, value: string | number | boolean | TextExportOption) => {
-    onChange({
-      ...settings,
-      [key]: value,
-    })
+  if (hideOptions) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>Selected Assets</Label>
+            <div className="text-sm text-muted-foreground">
+              {selectedCount} of {totalCount} assets selected
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium mb-2">Download Settings</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          You are about to download {selectedCount} of {totalCount} assets in {fileFormat} format.
-        </p>
-      </div>
-
-      {(fileFormat === "PNG" || fileFormat === "JPEG" || fileFormat === "WEBP") && (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="scale">Scale ({settings.scale}x)</Label>
-            <Slider
-              id="scale"
-              min={0.5}
-              max={4}
-              step={0.5}
-              value={[settings.scale]}
-              onValueChange={(value) => updateSettings("scale", value[0])}
-            />
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label>Selected Assets</Label>
+          <div className="text-sm text-muted-foreground">
+            {selectedCount} of {totalCount} assets selected
           </div>
-
-          {(fileFormat === "JPEG" || fileFormat === "WEBP") && (
-            <div className="space-y-2">
-              <Label htmlFor="quality">Quality ({settings.quality}%)</Label>
-              <Slider
-                id="quality"
-                min={10}
-                max={100}
-                step={5}
-                value={[settings.quality]}
-                onValueChange={(value) => updateSettings("quality", value[0])}
-              />
-            </div>
-          )}
-        </>
-      )}
-
-      {fileFormat === "SVG" && (
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="preserveLayers"
-            checked={settings.preserveLayers}
-            onCheckedChange={(checked) => updateSettings("preserveLayers", checked)}
-          />
-          <Label htmlFor="preserveLayers">Preserve original Figma layers</Label>
         </div>
-      )}
-
-      {hasTextAssets && (
-        <div className="space-y-2">
-          <Label>Text Export Options</Label>
-          <RadioGroup
-            value={settings.textExportOption}
-            onValueChange={(value) => updateSettings("textExportOption", value as TextExportOption)}
-            className="space-y-2"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="IMAGE" id="text-image" />
-              <Label htmlFor="text-image">Export text as images</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="FONT" id="text-font" disabled={!hasFontAssets} />
-              <Label htmlFor="text-font" className={!hasFontAssets ? "text-muted-foreground" : ""}>
-                Export fonts only {!hasFontAssets && "(No fonts detected)"}
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="BOTH" id="text-both" disabled={!hasFontAssets} />
-              <Label htmlFor="text-both" className={!hasFontAssets ? "text-muted-foreground" : ""}>
-                Export both text images and fonts
-              </Label>
-            </div>
-          </RadioGroup>
-        </div>
-      )}
-
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="includeInZip"
-          checked={settings.includeInZip}
-          onCheckedChange={(checked) => updateSettings("includeInZip", checked)}
-        />
-        <Label htmlFor="includeInZip">Download as ZIP file</Label>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="prefix">File name prefix (optional)</Label>
-        <Input
-          id="prefix"
-          placeholder="e.g., project-name-"
-          value={settings.prefix || ""}
-          onChange={(e) => updateSettings("prefix", e.target.value)}
-        />
+      <div className="space-y-4">
+        <div className="flex flex-col space-y-2">
+          <Label>Scale</Label>
+          <div className="flex items-center space-x-2">
+            <Slider
+              value={[settings.scale]}
+              onValueChange={([scale]) =>
+                onChange({ ...settings, scale })
+              }
+              min={0.1}
+              max={4}
+              step={0.1}
+              className="flex-1"
+            />
+            <span className="w-12 text-sm">{settings.scale}x</span>
+          </div>
+        </div>
+
+        {fileFormat === "JPEG" && (
+          <div className="flex flex-col space-y-2">
+            <Label>Quality</Label>
+            <div className="flex items-center space-x-2">
+              <Slider
+                value={[settings.quality]}
+                onValueChange={([quality]) =>
+                  onChange({ ...settings, quality })
+                }
+                min={1}
+                max={100}
+                step={1}
+                className="flex-1"
+              />
+              <span className="w-12 text-sm">{settings.quality}%</span>
+            </div>
+          </div>
+        )}
+
+        {fileFormat === "SVG" && (
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="preserveLayers"
+              checked={settings.preserveLayers}
+              onCheckedChange={(preserveLayers) =>
+                onChange({ ...settings, preserveLayers: !!preserveLayers })
+              }
+            />
+            <Label htmlFor="preserveLayers">Preserve layer structure</Label>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -2,9 +2,29 @@
 
 import type { ProcessNodesMessage } from '../types/worker'
 
-const worker = self as unknown as Worker
+declare const self: DedicatedWorkerGlobalScope
 
-worker.onmessage = (e: MessageEvent<ProcessNodesMessage>) => {
+interface FigmaNode {
+  id: string
+  name: string
+  type: string
+  geometryType?: string
+  vectorPaths?: any[]
+  vectorNetwork?: Record<string, any>
+  style?: {
+    fontFamily?: string
+    italic?: boolean
+    fontSize?: number
+    fontWeight?: number
+  }
+  children?: FigmaNode[]
+}
+
+interface NodeData {
+  document: FigmaNode
+}
+
+addEventListener('message', (e: MessageEvent<ProcessNodesMessage>) => {
   const { nodes, requestedAssetTypes, pageName, pageId } = e.data
   const assetIds: string[] = []
   const assetNames: Record<string, string> = {}
@@ -27,7 +47,7 @@ worker.onmessage = (e: MessageEvent<ProcessNodesMessage>) => {
     return "VECTORS"
   }
 
-  function processNode(node: any) {
+  function processNode(node: FigmaNode) {
     let isMatch = false
 
     if (requestedAssetTypes.includes("VECTORS")) {
@@ -52,8 +72,8 @@ worker.onmessage = (e: MessageEvent<ProcessNodesMessage>) => {
           assetFonts[node.id] = {
             fontFamily,
             fontStyle,
-            fontSize,
-            fontWeight,
+            fontSize: fontSize || 0,
+            fontWeight: fontWeight || 400,
           }
           uniqueFonts.add(`${fontFamily}-${fontStyle}-${fontWeight}`)
         }
@@ -80,14 +100,14 @@ worker.onmessage = (e: MessageEvent<ProcessNodesMessage>) => {
   }
 
   // Process all nodes in this chunk
-  Object.values(nodes).forEach(nodeData => {
+  Object.values(nodes).forEach((nodeData: NodeData) => {
     if (nodeData && nodeData.document) {
       processNode(nodeData.document)
     }
   })
 
   // Send back the results
-  worker.postMessage({
+  postMessage({
     assetIds,
     assetNames,
     assetTypesRecord,
@@ -96,6 +116,7 @@ worker.onmessage = (e: MessageEvent<ProcessNodesMessage>) => {
     pageId,
     pageName
   })
-}
+})
 
-export default null as any 
+// Export an empty object to satisfy TypeScript
+export default {} as typeof Worker 

@@ -49,12 +49,12 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
   const [blacklistPrefix, setBlacklistPrefix] = useState("")
   const [filterMode, setFilterMode] = useState<"whitelist" | "blacklist">("whitelist")
   const [previewBackground, setPreviewBackground] = useState<"white" | "black">("white")
-  const [downloadSettings, setDownloadSettings] = useState<DownloadSettings>({
+  const [downloadSettings] = useState<DownloadSettings>({
     scale: 1,
     quality: 80,
     preserveLayers: true,
     includeInZip: true,
-    textExportOption: "IMAGE",
+    textExportOption: "BOTH"
   })
 
   useEffect(() => {
@@ -350,11 +350,12 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
             <DownloadOptions
               fileFormat={fileFormat}
               settings={downloadSettings}
-              onChange={setDownloadSettings}
+              onChange={() => {}}
               selectedCount={selectedAssets.length}
               totalCount={filteredAssets.length}
               hasTextAssets={hasTextAssets}
               hasFontAssets={hasFontAssets}
+              hideOptions={true}
             />
 
             {downloadProgress !== null && (

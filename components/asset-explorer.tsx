@@ -15,6 +15,7 @@ import AssetTypeFilter from "@/components/asset-type-filter"
 import AssetPreview from "@/components/asset-preview"
 import DownloadOptions from "@/components/download-options"
 import PrefixFilter from "@/components/prefix-filter"
+import { Switch } from "@/components/ui/switch"
 import type { FigmaProject, FigmaAsset, AssetType, FileFormat, DownloadSettings } from "@/types/figma"
 import { fetchAssets, downloadAssets } from "@/lib/figma-api"
 import { useToast } from "@/hooks/use-toast"
@@ -45,6 +46,9 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
   const [activeTab, setActiveTab] = useState("select")
   const [prefixFilter, setPrefixFilter] = useState("")
   const [prefixFilterEnabled, setPrefixFilterEnabled] = useState(false)
+  const [blacklistPrefix, setBlacklistPrefix] = useState("")
+  const [filterMode, setFilterMode] = useState<"whitelist" | "blacklist">("whitelist")
+  const [previewBackground, setPreviewBackground] = useState<"white" | "black">("white")
   const [downloadSettings, setDownloadSettings] = useState<DownloadSettings>({
     scale: 1,
     quality: 80,
@@ -60,15 +64,26 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
   }, [project])
 
   useEffect(() => {
-    if (prefixFilterEnabled && prefixFilter) {
-      const filtered = assets.filter((asset) => asset.name.startsWith(prefixFilter))
-      setFilteredAssets(filtered)
-      // Update selected assets to only include filtered ones
-      setSelectedAssets((prev) => prev.filter((id) => filtered.some((asset) => asset.id === id)))
+    if (prefixFilterEnabled) {
+      if (filterMode === "whitelist" && prefixFilter) {
+        const prefixRules = prefixFilter.split("|")
+        const filtered = assets.filter((asset) => 
+          prefixRules.some(rule => asset.name.startsWith(rule))
+        )
+        setFilteredAssets(filtered)
+        setSelectedAssets((prev) => prev.filter((id) => filtered.some((asset) => asset.id === id)))
+      } else if (filterMode === "blacklist" && blacklistPrefix) {
+        const blacklistRules = blacklistPrefix.split("|")
+        const filtered = assets.filter((asset) => 
+          !blacklistRules.some(rule => asset.name.startsWith(rule))
+        )
+        setFilteredAssets(filtered)
+        setSelectedAssets((prev) => prev.filter((id) => filtered.some((asset) => asset.id === id)))
+      }
     } else {
       setFilteredAssets(assets)
     }
-  }, [assets, prefixFilter, prefixFilterEnabled])
+  }, [assets, prefixFilter, prefixFilterEnabled, blacklistPrefix, filterMode])
 
   const handleLoadAssets = async () => {
     if (selectedPages.length === 0) {
@@ -222,6 +237,10 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
                 enabled={prefixFilterEnabled}
                 onPrefixChange={setPrefixFilter}
                 onEnabledChange={setPrefixFilterEnabled}
+                blacklistPrefix={blacklistPrefix}
+                onBlacklistPrefixChange={setBlacklistPrefix}
+                filterMode={filterMode}
+                onFilterModeChange={setFilterMode}
               />
             </div>
 
@@ -259,20 +278,33 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">
                 Assets Preview ({selectedAssets.length}/{filteredAssets.length})
-                {prefixFilterEnabled && prefixFilter && (
-                  <span className="ml-2 text-sm text-muted-foreground">Filtered by prefix: "{prefixFilter}"</span>
+                {prefixFilterEnabled && (
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {filterMode === "whitelist" && prefixFilter && `Including prefix: "${prefixFilter}"`}
+                    {filterMode === "blacklist" && blacklistPrefix && `Excluding prefix: "${blacklistPrefix}"`}
+                  </span>
                 )}
               </h3>
-              {filteredAssets.length > 0 && (
+              <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="select-all"
-                    checked={selectedAssets.length === filteredAssets.length && filteredAssets.length > 0}
-                    onCheckedChange={handleSelectAllAssets}
+                  <Switch
+                    id="preview-background"
+                    checked={previewBackground === "black"}
+                    onCheckedChange={(checked) => setPreviewBackground(checked ? "black" : "white")}
                   />
-                  <Label htmlFor="select-all">Select All</Label>
+                  <Label htmlFor="preview-background">Dark Background</Label>
                 </div>
-              )}
+                {filteredAssets.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="select-all"
+                      checked={selectedAssets.length === filteredAssets.length && filteredAssets.length > 0}
+                      onCheckedChange={handleSelectAllAssets}
+                    />
+                    <Label htmlFor="select-all">Select All</Label>
+                  </div>
+                )}
+              </div>
             </div>
 
             {filteredAssets.length > 0 ? (
@@ -284,6 +316,7 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
                       asset={asset}
                       isSelected={selectedAssets.includes(asset.id)}
                       onSelect={(checked) => handleAssetSelection(asset.id, checked)}
+                      previewBackground={previewBackground}
                     />
                   ))}
                 </div>
@@ -291,18 +324,10 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
             ) : (
               <div className="flex flex-col items-center justify-center p-8 border rounded-md bg-muted/20">
                 <div className="text-muted-foreground mb-4 text-center">
-                  {prefixFilterEnabled && prefixFilter ? (
+                  {prefixFilterEnabled && (
                     <>
-                      No assets found with prefix "{prefixFilter}". Try a different prefix or disable prefix filtering.
-                    </>
-                  ) : (
-                    <>
-                      No assets found. This could be due to:
-                      <ul className="list-disc pl-6 mt-2 text-left">
-                        <li>The selected asset types don't match what's in your Figma file</li>
-                        <li>The selected pages don't contain exportable elements</li>
-                        <li>Your API key doesn't have access to this file</li>
-                      </ul>
+                      {filterMode === "whitelist" && prefixFilter && `No assets found with prefix "${prefixFilter}".`}
+                      {filterMode === "blacklist" && blacklistPrefix && `No assets found excluding prefix "${blacklistPrefix}".`}
                     </>
                   )}
                 </div>

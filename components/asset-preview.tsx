@@ -9,14 +9,21 @@ import { Button } from "@/components/ui/button"
 import { Eye, FileText, Type, Maximize2 } from "lucide-react"
 import type { FigmaAsset } from "@/types/figma"
 import AssetPreviewModal from "./asset-preview-modal"
+import { cn } from "@/lib/utils"
 
 interface AssetPreviewProps {
   asset: FigmaAsset
   isSelected: boolean
   onSelect: (checked: boolean) => void
+  previewBackground?: "white" | "black"
 }
 
-export default function AssetPreview({ asset, isSelected, onSelect }: AssetPreviewProps) {
+export default function AssetPreview({ 
+  asset, 
+  isSelected, 
+  onSelect,
+  previewBackground = "white"
+}: AssetPreviewProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
   const getAssetTypeIcon = () => {
@@ -33,52 +40,48 @@ export default function AssetPreview({ asset, isSelected, onSelect }: AssetPrevi
   }
 
   return (
-    <>
-      <Card className={`overflow-hidden ${isSelected ? "ring-2 ring-primary" : ""}`}>
-        <CardContent className="p-2">
-          <div className="relative aspect-square bg-slate-100 rounded-md overflow-hidden group">
-            {asset.thumbnailUrl ? (
-              <>
-                <Image
-                  src={asset.thumbnailUrl || "/placeholder.svg"}
-                  alt={asset.name}
-                  fill
-                  className="object-contain"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => setModalOpen(true)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Preview
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">No preview</div>
-            )}
-            <div className="absolute top-2 left-2 bg-background/80 rounded-md p-1">{getAssetTypeIcon()}</div>
+    <div className="relative">
+      <div className={cn(
+        "relative aspect-square rounded-lg border overflow-hidden",
+        "group hover:border-primary transition-colors",
+        isSelected && "border-primary",
+        previewBackground === "black" ? "bg-black" : "bg-white"
+      )}>
+        {asset.thumbnailUrl ? (
+          <Image
+            src={asset.thumbnailUrl}
+            alt={asset.name}
+            className="object-contain p-2"
+            fill
+            sizes="(max-width: 768px) 50vw, 25vw"
+            priority={false}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
+            No preview available
           </div>
-        </CardContent>
-        <CardFooter className="p-2 pt-0">
-          <div className="flex items-center space-x-2 w-full">
-            <Checkbox
-              id={`asset-${asset.id}`}
-              checked={isSelected}
-              onCheckedChange={(checked) => onSelect(!!checked)}
-            />
-            <Label htmlFor={`asset-${asset.id}`} className="text-xs truncate flex-1" title={asset.name}>
-              {asset.name}
-            </Label>
-          </div>
-        </CardFooter>
-      </Card>
-
-      <AssetPreviewModal asset={asset} open={modalOpen} onOpenChange={setModalOpen} />
-    </>
+        )}
+        <div className="absolute left-2 top-2">
+          <Checkbox
+            id={`select-${asset.id}`}
+            checked={isSelected}
+            onCheckedChange={onSelect}
+          />
+        </div>
+      </div>
+      <Label
+        htmlFor={`select-${asset.id}`}
+        className="mt-2 block truncate text-sm"
+        title={asset.name}
+      >
+        {asset.name}
+      </Label>
+      {asset.type === "TEXT" && asset.fontFamily && (
+        <div className="text-xs text-muted-foreground truncate" title={`${asset.fontFamily} ${asset.fontStyle || ""}`}>
+          {asset.fontFamily} {asset.fontStyle || ""}
+        </div>
+      )}
+    </div>
   )
 }
 

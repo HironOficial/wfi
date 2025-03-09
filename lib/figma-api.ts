@@ -9,6 +9,23 @@ import type {
 } from "@/types/figma"
 import JSZip from "jszip"
 import FileSaver from "file-saver"
+import { createDownloadWorker } from "@/lib/worker-utils"
+import { createAssetProcessorWorker } from "@/lib/asset-processor.worker"
+
+interface WorkerResult {
+  assetIds: string[]
+  assetNames: Record<string, string>
+  assetTypesRecord: Record<string, AssetType>
+  assetFonts: Record<string, {
+    fontFamily: string
+    fontStyle: string
+    fontSize: number
+    fontWeight: number
+  }>
+  uniqueFonts: string[]
+  pageId: string
+  pageName: string
+}
 
 // Extract file ID from Figma URL
 export function extractFileIdFromUrl(url: string): string | null {
@@ -78,26 +95,167 @@ export async function fetchAssets(
   format: FileFormat,
 ): Promise<FigmaAsset[]> {
   try {
-    const response = await fetch(`/api/figma/assets`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Figma-Token": apiKey,
+    // Get nodes from the file with more details
+    const nodesResponse = await fetch(
+      `https://api.figma.com/v1/files/${fileId}/nodes?ids=${pageIds.join(",")}&geometry=paths`,
+      {
+        headers: {
+          "X-Figma-Token": apiKey,
+        },
       },
-      body: JSON.stringify({
-        fileId,
-        pageIds,
-        assetTypes,
-        format,
-      }),
-    })
+    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || "Failed to fetch assets")
+    if (!nodesResponse.ok) {
+      const error = await nodesResponse.json()
+      throw new Error(error.message || "Failed to fetch Figma nodes")
     }
 
-    return await response.json()
+    const nodesData = await nodesResponse.json()
+
+    // Process nodes in parallel using workers
+    const workerPromises = pageIds.map(pageId => {
+      return new Promise((resolve, reject) => {
+        const worker = createAssetProcessorWorker()
+        
+        worker.onmessage = (e) => {
+          worker.terminate()
+          resolve(e.data)
+        }
+
+        worker.onerror = (error) => {
+          worker.terminate()
+          reject(error)
+        }
+
+        // Send the nodes for this page to the worker
+        worker.postMessage({
+          nodes: { [pageId]: nodesData.nodes[pageId] },
+          requestedAssetTypes: assetTypes,
+          pageName: nodesData.nodes[pageId]?.document?.name || "",
+          pageId
+        })
+      })
+    })
+
+    // Wait for all workers to complete
+    const results = await Promise.all(workerPromises) as WorkerResult[]
+
+    // Combine results from all workers
+    const assetIds: string[] = []
+    const assetNames: Record<string, string> = {}
+    const assetTypesRecord: Record<string, AssetType> = {}
+    const assetFonts: Record<string, any> = {}
+    const assetPages: Record<string, { id: string; name: string }> = {}
+    const uniqueFonts = new Set<string>()
+
+    results.forEach((result: WorkerResult) => {
+      assetIds.push(...result.assetIds)
+      Object.assign(assetNames, result.assetNames)
+      Object.assign(assetTypesRecord, result.assetTypesRecord)
+      Object.assign(assetFonts, result.assetFonts)
+      result.uniqueFonts.forEach(font => uniqueFonts.add(font))
+      
+      // Add page info for each asset
+      result.assetIds.forEach(id => {
+        assetPages[id] = { id: result.pageId, name: result.pageName }
+      })
+    })
+
+    if (assetIds.length === 0) {
+      return []
+    }
+
+    // Get image URLs for the assets
+    const imagesResponse = await fetch(
+      `https://api.figma.com/v1/images/${fileId}?ids=${assetIds.join(",")}&format=${format.toLowerCase()}&svg_include_id=true`,
+      {
+        headers: {
+          "X-Figma-Token": apiKey,
+        },
+      },
+    )
+
+    if (!imagesResponse.ok) {
+      const error = await imagesResponse.json()
+      throw new Error(error.message || "Failed to fetch Figma images")
+    }
+
+    const imagesData = await imagesResponse.json()
+
+    // Get font files for text elements
+    const textAssets = assetIds.filter(id => assetTypesRecord[id] === "TEXT" && assetFonts[id]?.fontFamily)
+    const fontUrls: Record<string, string> = {}
+
+    if (textAssets.length > 0) {
+      try {
+        // First get the file styles to find font references
+        const stylesResponse = await fetch(
+          `https://api.figma.com/v1/files/${fileId}/styles`,
+          {
+            headers: {
+              "X-Figma-Token": apiKey,
+            },
+          }
+        )
+
+        if (stylesResponse.ok) {
+          const stylesData = await stylesResponse.json()
+          const textStyles = stylesData.meta.styles.filter((style: any) => style.style_type === "TEXT")
+
+          // For each text asset, try to find its font
+          await Promise.all(textAssets.map(async (assetId) => {
+            const fontInfo = assetFonts[assetId]
+            if (fontInfo?.fontFamily) {
+              // Try to find matching style
+              const matchingStyle = textStyles.find((style: any) => {
+                const styleDescription = style.description || ""
+                return styleDescription.includes(fontInfo.fontFamily) &&
+                  (!fontInfo.fontStyle || styleDescription.includes(fontInfo.fontStyle)) &&
+                  (!fontInfo.fontWeight || styleDescription.includes(fontInfo.fontWeight.toString()))
+              })
+
+              if (matchingStyle) {
+                // Get the font file URL
+                const fontResponse = await fetch(
+                  `https://api.figma.com/v1/files/${fileId}/styles/${matchingStyle.key}/font`,
+                  {
+                    headers: {
+                      "X-Figma-Token": apiKey,
+                    },
+                  }
+                )
+
+                if (fontResponse.ok) {
+                  const fontData = await fontResponse.json()
+                  if (fontData.url) {
+                    fontUrls[assetId] = fontData.url
+                  }
+                }
+              }
+            }
+          }))
+        }
+      } catch (error) {
+        console.error("Error fetching font files:", error)
+      }
+    }
+
+    // Construct the final assets array
+    return assetIds.map(assetId => ({
+      id: assetId,
+      name: assetNames[assetId],
+      type: assetTypesRecord[assetId],
+      url: imagesData.images[assetId] || fontUrls[assetId] || "",
+      format: format,
+      pageId: assetPages[assetId].id,
+      pageName: assetPages[assetId].name,
+      fontFamily: assetFonts[assetId]?.fontFamily,
+      fontStyle: assetFonts[assetId]?.fontStyle,
+      fontWeight: assetFonts[assetId]?.fontWeight,
+      fontSize: assetFonts[assetId]?.fontSize,
+      thumbnailUrl: imagesData.images[assetId] || ""
+    }))
+
   } catch (error) {
     console.error("Error fetching assets:", error)
     throw error
@@ -146,94 +304,43 @@ async function downloadAsZip(
   settings: DownloadSettings,
   onProgress?: (progress: number) => void,
 ): Promise<void> {
-  const zip = new JSZip()
-  const prefix = settings.prefix || ""
+  // Create a new worker instance
+  const worker = createDownloadWorker()
 
-  // Create folders for different asset types
-  const imagesFolder = zip.folder("images")
-  const vectorsFolder = zip.folder("vectors")
-  const textFolder = zip.folder("text")
-  const fontsFolder = zip.folder("fonts")
-  const componentsFolder = zip.folder("components")
-  const framesFolder = zip.folder("frames")
-
-  // Track unique fonts to avoid duplicates
-  const processedFonts = new Set<string>()
-  let completedAssets = 0
-  const totalAssets = assets.length
-
-  // Add each asset to the ZIP
-  for (const asset of assets) {
-    try {
-      // Handle font files for text assets
-      if (asset.type === "TEXT" && asset.fontFamily && settings.textExportOption !== "IMAGE") {
-        const fontId = `${asset.fontFamily}-${asset.fontStyle}-${asset.fontWeight}`
-        if (!processedFonts.has(fontId) && asset.url) {
-          processedFonts.add(fontId)
-          
-          // Download the font file
-          const response = await fetch(asset.url)
-          const blob = await response.blob()
-          const fontFileName = `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.ttf`
-          fontsFolder?.file(fontFileName, blob)
-          
-          // Create font CSS file
-          const fontInfo = `
-/* Font Information
-Family: ${asset.fontFamily}
-Style: ${asset.fontStyle || "Regular"}
-Weight: ${asset.fontWeight || "Normal"}
-*/
-
-@font-face {
-  font-family: '${asset.fontFamily}';
-  font-style: ${asset.fontStyle?.toLowerCase() || "normal"};
-  font-weight: ${asset.fontWeight || 400};
-  src: url('./${fontFileName}') format('truetype');
-}
-`
-          fontsFolder?.file(`${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}.css`, fontInfo)
-        }
+  return new Promise((resolve, reject) => {
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') {
+        onProgress?.(e.data.progress)
+      } else if (e.data.type === 'complete') {
+        FileSaver.saveAs(e.data.blob, `figma-assets-${new Date().toISOString().slice(0, 10)}.zip`)
+        worker.terminate()
+        resolve()
       }
-
-      // For assets with URLs, fetch and add to ZIP
-      if (asset.url && (settings.textExportOption !== "FONT" || asset.type !== "TEXT")) {
-        const response = await fetch(asset.url)
-        const blob = await response.blob()
-        const fileName = `${prefix}${asset.name}.${format.toLowerCase()}`
-
-        // Add to appropriate folder based on asset type
-        switch (asset.type) {
-          case "IMAGES":
-            imagesFolder?.file(fileName, blob)
-            break
-          case "VECTORS":
-            vectorsFolder?.file(fileName, blob)
-            break
-          case "TEXT":
-            textFolder?.file(fileName, blob)
-            break
-          case "COMPONENTS":
-            componentsFolder?.file(fileName, blob)
-            break
-          case "FRAMES":
-            framesFolder?.file(fileName, blob)
-            break
-          default:
-            zip.file(fileName, blob)
-        }
-      }
-
-      completedAssets++
-      onProgress?.(Math.round((completedAssets / totalAssets) * 100))
-    } catch (error) {
-      console.error(`Error adding ${asset.name} to ZIP:`, error)
     }
-  }
 
-  // Generate and save the ZIP file
-  const zipBlob = await zip.generateAsync({ type: "blob" })
-  FileSaver.saveAs(zipBlob, `figma-assets-${new Date().toISOString().slice(0, 10)}.zip`)
+    worker.onerror = (error) => {
+      console.error('Worker error:', error)
+      worker.terminate()
+      reject(error)
+    }
+
+    // Start the worker with our assets
+    worker.postMessage({
+      assets: assets.map(asset => ({
+        id: asset.id,
+        url: asset.url,
+        name: asset.name,
+        type: asset.type,
+        format: asset.format,
+        fontFamily: asset.fontFamily,
+        fontStyle: asset.fontStyle,
+        fontWeight: asset.fontWeight
+      })),
+      prefix: settings.prefix || "",
+      format: format,
+      batchSize: 10 // Process 10 assets in parallel
+    })
+  })
 }
 
 // Download assets individually

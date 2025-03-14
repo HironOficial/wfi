@@ -14,24 +14,39 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
       }
 
-      // Use asset modules for workers
+      // Configure worker loading
       config.module.rules.push({
         test: /\.worker\.(js|ts)$/,
-        type: 'asset/resource',
-        generator: {
-          filename: 'static/workers/[hash][ext][query]'
-        }
+        use: [
+          {
+            loader: 'worker-loader',
+            options: {
+              filename: 'static/workers/[name].[hash].js',
+              publicPath: '/_next/',
+              inline: 'no-fallback',
+            },
+          },
+        ],
       })
     }
 
+    // Add source maps in development
+    if (dev) {
+      config.devtool = 'source-map'
+    }
+
     return config
+  },
+  // Required to make worker-loader work with Next.js
+  experimental: {
+    esmExternals: 'loose'
   }
 }
 

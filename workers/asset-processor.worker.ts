@@ -1,4 +1,6 @@
 /// <reference lib="webworker" />
+import type { AssetType } from "@/types/figma"
+
 declare const self: DedicatedWorkerGlobalScope;
 
 interface WorkerMessage {
@@ -24,15 +26,17 @@ interface WorkerMessage {
   pageId: string;
 }
 
-self.onmessage = (e: MessageEvent<WorkerMessage>) => {
+self.addEventListener('message', (e: MessageEvent) => {
+  console.log("[Worker] Starting node processing...");
   const { nodes, requestedAssetTypes, pageName, pageId } = e.data;
+  
   const assetIds: string[] = [];
   const assetNames: Record<string, string> = {};
-  const assetTypesRecord: Record<string, string> = {};
+  const assetTypesRecord: Record<string, AssetType> = {};
   const assetFonts: Record<string, any> = {};
   const uniqueFonts = new Set<string>();
 
-  function mapNodeTypeToAssetType(nodeType: string): string {
+  function mapNodeTypeToAssetType(nodeType: string): AssetType {
     if (nodeType === "IMAGE") return "IMAGES";
     if (["VECTOR", "LINE", "REGULAR_POLYGON", "POLYGON", "STAR", "ELLIPSE", "RECTANGLE"].includes(nodeType))
       return "VECTORS";
@@ -42,7 +46,7 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
     return "VECTORS";
   }
 
-  function processNode(node: NonNullable<WorkerMessage['nodes'][string]['document']>) {
+  function processNode(node: any) {
     if (!node) return;
     
     let isMatch = false;
@@ -69,7 +73,7 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
         const fontSize = node.style.fontSize;
         const fontWeight = node.style.fontWeight;
 
-        assetFonts[node.id!] = {
+        assetFonts[node.id] = {
           fontFamily,
           fontStyle,
           fontSize,
@@ -94,18 +98,21 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
     }
 
     if (node.children) {
-      node.children.forEach(child => processNode(child as any));
+      node.children.forEach((child: any) => processNode(child));
     }
   }
 
+  console.log("[Worker] Processing nodes for page:", pageName);
   // Process all nodes in this chunk
-  Object.values(nodes).forEach(nodeData => {
+  Object.values(nodes).forEach((nodeData: any) => {
     if (nodeData?.document) {
       processNode(nodeData.document);
     }
   });
 
-  // Send back the results
+  console.log(`[Worker] Found ${assetIds.length} assets in page ${pageName}`);
+  console.log("[Worker] Sending results back to main thread...");
+  
   self.postMessage({
     assetIds,
     assetNames,
@@ -115,7 +122,7 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
     pageId,
     pageName
   });
-};
+});
 
 // Export empty object to make it a module
 export {}; 

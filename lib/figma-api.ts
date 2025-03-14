@@ -179,6 +179,110 @@ export async function fetchFigmaProject(fileId: string, apiKey: string): Promise
   }
 }
 
+// Worker pool implementation
+class WorkerPool {
+  private workers: Worker[] = [];
+  private queue: { task: any; resolve: (value: any) => void }[] = [];
+  private activeWorkers = 0;
+  private readonly maxWorkers = 10;
+
+  constructor() {
+    console.log("[WorkerPool] Initializing worker pool with max size:", this.maxWorkers);
+  }
+
+  private getWorker(): Worker | null {
+    if (this.activeWorkers < this.maxWorkers) {
+      const worker = createAssetProcessorWorker();
+      if (worker) {
+        this.activeWorkers++;
+        console.log("[WorkerPool] Created new worker, active workers:", this.activeWorkers);
+        return worker;
+      }
+    }
+    return null;
+  }
+
+  async processTask(task: any): Promise<any> {
+    return new Promise((resolve) => {
+      const worker = this.getWorker();
+      
+      if (worker) {
+        console.log("[WorkerPool] Processing task with worker");
+        this.setupWorker(worker, task, resolve);
+      } else {
+        console.log("[WorkerPool] No worker available, queueing task");
+        this.queue.push({ task, resolve });
+      }
+    });
+  }
+
+  private setupWorker(worker: Worker, task: any, resolve: (value: any) => void) {
+    const timeoutId = setTimeout(() => {
+      console.warn("[WorkerPool] Worker timeout, falling back to main thread");
+      worker.terminate();
+      this.activeWorkers--;
+      resolve(processNodesInMainThread(task));
+      this.processNextTask();
+    }, 10000);
+
+    worker.addEventListener('message', (e: MessageEvent) => {
+      clearTimeout(timeoutId);
+      console.log("[WorkerPool] Worker completed task");
+      worker.terminate();
+      this.activeWorkers--;
+      resolve(e.data);
+      this.processNextTask();
+    });
+
+    worker.addEventListener('error', (error: ErrorEvent) => {
+      clearTimeout(timeoutId);
+      console.warn("[WorkerPool] Worker error, falling back to main thread:", error);
+      worker.terminate();
+      this.activeWorkers--;
+      resolve(processNodesInMainThread(task));
+      this.processNextTask();
+    });
+
+    worker.postMessage(task);
+  }
+
+  private processNextTask() {
+    if (this.queue.length > 0) {
+      const { task, resolve } = this.queue.shift()!;
+      const worker = this.getWorker();
+      if (worker) {
+        console.log("[WorkerPool] Processing queued task");
+        this.setupWorker(worker, task, resolve);
+      } else {
+        console.log("[WorkerPool] No worker available for queued task, processing in main thread");
+        resolve(processNodesInMainThread(task));
+      }
+    }
+  }
+}
+
+// Helper function to split a node tree into chunks for parallel processing
+function splitNodeTree(node: any, maxChunks: number = 10): any[] {
+  if (!node || !node.children || node.children.length === 0) {
+    return [node];
+  }
+
+  // If the node has children, we'll split them into chunks
+  const chunks: any[] = [];
+  const chunkSize = Math.max(1, Math.ceil(node.children.length / maxChunks));
+  
+  console.log(`[splitNodeTree] Splitting ${node.children.length} children into chunks of ~${chunkSize}`);
+  
+  // Create a copy of the node without children for each chunk
+  for (let i = 0; i < node.children.length; i += chunkSize) {
+    const chunkChildren = node.children.slice(i, i + chunkSize);
+    const nodeClone = { ...node, children: chunkChildren };
+    chunks.push(nodeClone);
+  }
+  
+  return chunks;
+}
+
 // Fetch assets from selected pages
 export async function fetchAssets(
   fileId: string,
@@ -211,87 +315,41 @@ export async function fetchAssets(
     const nodesData = await nodesResponse.json()
     console.log("[fetchAssets] Nodes data received, starting worker processing...");
 
-    // Process nodes in parallel using workers
-    const workerPromises = pageIds.map(pageId => {
-      return new Promise((resolve, reject) => {
-        try {
-          console.log(`[fetchAssets] Creating worker for page ${pageId}...`);
-          const worker = createAssetProcessorWorker()
-          
-          if (!worker) {
-            console.log(`[fetchAssets] No worker available for page ${pageId}, falling back to main thread...`);
-            // Process in main thread instead
-            const data = {
-              nodes: { [pageId]: nodesData.nodes[pageId] },
-              requestedAssetTypes: assetTypes,
-              pageName: nodesData.nodes[pageId]?.document?.name || "",
-              pageId
-            };
-            resolve(processNodesInMainThread(data));
-            return;
-          }
+    // Create worker pool
+    const workerPool = new WorkerPool();
+    const workerPromises: Promise<any>[] = [];
 
-          // Set up a timeout
-          const timeoutId = setTimeout(() => {
-            console.warn(`[fetchAssets] Worker timeout for page ${pageId}, falling back to main thread...`);
-            worker.terminate();
-            
-            // Process in main thread instead
-            const data = {
-              nodes: { [pageId]: nodesData.nodes[pageId] },
-              requestedAssetTypes: assetTypes,
-              pageName: nodesData.nodes[pageId]?.document?.name || "",
-              pageId
-            };
-            resolve(processNodesInMainThread(data));
-          }, 10000); // 10 second timeout
-          
-          worker.addEventListener('message', (e: MessageEvent) => {
-            clearTimeout(timeoutId);
-            console.log(`[fetchAssets] Worker completed for page ${pageId}`);
-            worker.terminate();
-            resolve(e.data);
-          });
-
-          worker.addEventListener('error', (error: ErrorEvent) => {
-            clearTimeout(timeoutId);
-            console.warn(`[fetchAssets] Worker error for page ${pageId}, falling back to main thread:`, error);
-            worker.terminate();
-            
-            // Process in main thread instead
-            const data = {
-              nodes: { [pageId]: nodesData.nodes[pageId] },
-              requestedAssetTypes: assetTypes,
-              pageName: nodesData.nodes[pageId]?.document?.name || "",
-              pageId
-            };
-            resolve(processNodesInMainThread(data));
-          });
-
-          console.log(`[fetchAssets] Sending data to worker for page ${pageId}...`);
-          // Send the nodes for this page to the worker
-          worker.postMessage({
-            nodes: { [pageId]: nodesData.nodes[pageId] },
-            requestedAssetTypes: assetTypes,
-            pageName: nodesData.nodes[pageId]?.document?.name || "",
-            pageId
-          });
-        } catch (error) {
-          console.warn(`[fetchAssets] Failed to process page ${pageId} with worker:`, error);
-          
-          // Process in main thread instead
-          const data = {
-            nodes: { [pageId]: nodesData.nodes[pageId] },
-            requestedAssetTypes: assetTypes,
-            pageName: nodesData.nodes[pageId]?.document?.name || "",
-            pageId
-          };
-          resolve(processNodesInMainThread(data));
-        }
+    // Process each page
+    for (const pageId of pageIds) {
+      const pageNode = nodesData.nodes[pageId]?.document;
+      const pageName = pageNode?.name || "";
+      
+      if (!pageNode) {
+        console.warn(`[fetchAssets] No document found for page ${pageId}, skipping`);
+        continue;
+      }
+      
+      console.log(`[fetchAssets] Processing page ${pageName} (${pageId})`);
+      
+      // Split the page node into chunks for parallel processing
+      const nodeChunks = splitNodeTree(pageNode, 10); // Split into up to 10 chunks
+      console.log(`[fetchAssets] Split page into ${nodeChunks.length} chunks for parallel processing`);
+      
+      // Process each chunk with a separate worker
+      nodeChunks.forEach((chunk, index) => {
+        const task = {
+          nodes: { [`${pageId}_chunk_${index}`]: { document: chunk } },
+          requestedAssetTypes: assetTypes,
+          pageName: pageName,
+          pageId: pageId
+        };
+        
+        console.log(`[fetchAssets] Creating task for chunk ${index + 1}/${nodeChunks.length} of page ${pageName}`);
+        workerPromises.push(workerPool.processTask(task));
       });
-    })
+    }
 
-    console.log("[fetchAssets] Waiting for all workers to complete...");
+    console.log(`[fetchAssets] Created ${workerPromises.length} worker tasks, waiting for completion...`);
     // Wait for all workers to complete
     const results = await Promise.all(workerPromises) as WorkerResult[]
     console.log("[fetchAssets] All workers completed, processing results...");
@@ -317,7 +375,10 @@ export async function fetchAssets(
       })
     })
 
+    console.log(`[fetchAssets] Combined results: found ${assetIds.length} assets across all chunks`);
+    
     if (assetIds.length === 0) {
+      console.warn("[fetchAssets] No assets found in any chunks");
       return []
     }
 
@@ -511,7 +572,7 @@ async function downloadAsZip(
         console.log(`[downloadAsZip] Adding font info: ${fontId}`);
         processedFonts.add(fontId);
 
-        const fontInfo = `
+          const fontInfo = `
 /*
 Font Information
 ---------------
@@ -683,11 +744,11 @@ Size: ${asset.fontSize || "Default"}px
 */`;
               const infoBlob = new Blob([fontInfo], { type: "text/plain" });
               FileSaver.saveAs(infoBlob, `${prefix}${asset.fontFamily}-${asset.fontStyle || "Regular"}-info.txt`);
-            }
-          }
+        }
+      }
 
-          // For assets with URLs, fetch and download
-          if (asset.url && (settings.textExportOption !== "FONT" || asset.type !== "TEXT")) {
+      // For assets with URLs, fetch and download
+      if (asset.url && (settings.textExportOption !== "FONT" || asset.type !== "TEXT")) {
             console.log(`[downloadIndividually] Downloading asset: ${asset.name}`);
             const response = await fetch(asset.url);
             if (!response.ok) {
@@ -702,7 +763,7 @@ Size: ${asset.fontSize || "Default"}px
           const progress = Math.round((completedAssets / totalAssets) * 100);
           console.log(`[downloadIndividually] Progress: ${progress}%`);
           onProgress?.(progress);
-        } catch (error) {
+    } catch (error) {
           console.error(`[downloadIndividually] Error processing ${asset.name}:`, error);
           // Continue with other assets even if one fails
         }

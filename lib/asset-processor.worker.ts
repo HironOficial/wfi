@@ -11,7 +11,13 @@ export function createAssetProcessorWorker() {
   }
 
   try {
-    const worker = new Worker(new URL('../workers/asset-processor.ts', import.meta.url))
+    // In development, use the direct worker file
+    // In production, webpack will handle this correctly through asset modules
+    const workerPath = process.env.NODE_ENV === 'development' 
+      ? new URL('../workers/asset-processor.worker.ts', import.meta.url)
+      : '/_next/static/workers/asset-processor.worker.js'
+
+    const worker = new Worker(workerPath)
 
     // Clean up when the worker is terminated
     worker.addEventListener('terminate', () => {

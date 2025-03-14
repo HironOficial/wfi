@@ -1,4 +1,6 @@
-/* eslint-disable no-restricted-globals */
+/// <reference lib="webworker" />
+declare const self: DedicatedWorkerGlobalScope;
+
 interface WorkerMessage {
   nodes: Record<string, {
     document?: {
@@ -22,10 +24,7 @@ interface WorkerMessage {
   pageId: string;
 }
 
-// Make sure the worker context is properly typed
-const ctx: Worker = self as any;
-
-ctx.onmessage = (e: MessageEvent<WorkerMessage>) => {
+self.onmessage = (e: MessageEvent<WorkerMessage>) => {
   const { nodes, requestedAssetTypes, pageName, pageId } = e.data;
   const assetIds: string[] = [];
   const assetNames: Record<string, string> = {};
@@ -107,7 +106,7 @@ ctx.onmessage = (e: MessageEvent<WorkerMessage>) => {
   });
 
   // Send back the results
-  ctx.postMessage({
+  self.postMessage({
     assetIds,
     assetNames,
     assetTypesRecord,

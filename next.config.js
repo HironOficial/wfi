@@ -20,15 +20,16 @@ const nextConfig = {
         ...config.resolve.fallback,
         fs: false,
       }
-    }
 
-    config.module.rules.push({
-      test: /\.worker\.(js|ts)$/,
-      type: 'asset/resource',
-      generator: {
-        filename: 'static/chunks/[name].[hash][ext]',
-      },
-    })
+      // Use asset modules for workers
+      config.module.rules.push({
+        test: /\.worker\.(js|ts)$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'static/workers/[hash][ext][query]'
+        }
+      })
+    }
 
     return config
   }

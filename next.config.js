@@ -21,15 +21,13 @@ const nextConfig = {
         fs: false,
       }
     }
-    config.experiments = {
-      ...config.experiments,
-      topLevelAwait: true,
-    }
 
-    // Add worker support
     config.module.rules.push({
       test: /\.worker\.(js|ts)$/,
-      use: { loader: 'worker-loader' },
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/chunks/[name].[hash][ext]',
+      },
     })
 
     return config

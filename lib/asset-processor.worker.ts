@@ -12,7 +12,7 @@ export function createAssetProcessorWorker() {
 
   try {
     const worker = new Worker(new URL('../workers/asset-processor.ts', import.meta.url))
-    
+
     // Clean up when the worker is terminated
     worker.addEventListener('terminate', () => {
       worker.terminate()

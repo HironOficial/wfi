@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals */
 interface WorkerMessage {
   nodes: Record<string, {
     document?: {
@@ -21,7 +22,10 @@ interface WorkerMessage {
   pageId: string;
 }
 
-self.onmessage = (e: MessageEvent<WorkerMessage>) => {
+// Make sure the worker context is properly typed
+const ctx: Worker = self as any;
+
+ctx.onmessage = (e: MessageEvent<WorkerMessage>) => {
   const { nodes, requestedAssetTypes, pageName, pageId } = e.data;
   const assetIds: string[] = [];
   const assetNames: Record<string, string> = {};
@@ -103,7 +107,7 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
   });
 
   // Send back the results
-  self.postMessage({
+  ctx.postMessage({
     assetIds,
     assetNames,
     assetTypesRecord,
@@ -112,4 +116,7 @@ self.onmessage = (e: MessageEvent<WorkerMessage>) => {
     pageId,
     pageName
   });
-}; 
+};
+
+// Export empty object to make it a module
+export {}; 

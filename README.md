@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Figma Asset Extractor | Open Nexus
+
+An open-source tool that makes extracting assets from Figma designs quick and easy. Built with Next.js and TypeScript.
+
+## Features
+
+- 🔗 Simple URL-based connection - just paste your Figma project URL
+- 🖼️ Extract multiple asset types:
+  - Images
+  - Vectors
+  - Text elements
+  - Components
+  - Frames
+- 📦 Bulk asset downloads
+- 🎨 Multiple export formats (PNG, SVG, JPEG, PDF, WEBP)
+- 🔍 Smart filtering options
+- 🌓 Light/Dark mode support
+- ⚡ Real-time preview
+- 🎯 Prefix-based filtering
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18.x or later
+- npm or yarn
+- A Figma account
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/figma-asset-extractor.git
+cd figma-asset-extractor
+```
+
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Start the development server:
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Copy your Figma project URL (e.g., https://www.figma.com/file/...)
+2. Paste the URL into the application
+3. Select the pages and asset types you want to extract
+4. Apply any filters if needed
+5. Preview and select your assets
+6. Download them in your preferred format
 
-## Learn More
+## Contributing
 
-To learn more about Next.js, take a look at the following resources:
+We welcome contributions! Here's how you can help:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
+This project is open source and available under the [MIT License](LICENSE).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Support
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+If you find this tool helpful, consider:
+- Starring the repository ⭐
+- Contributing to the code 🛠️
+- Reporting bugs or suggesting features 🐛
+- Supporting the project through [Ko-fi](https://ko-fi.com/hiron)
+
+## Built With
+
+- [Next.js](https://nextjs.org) - The React framework
+- [TypeScript](https://www.typescriptlang.org/) - For type safety
+- [Tailwind CSS](https://tailwindcss.com) - For styling
+- [shadcn/ui](https://ui.shadcn.com/) - UI components
+- [Figma API](https://www.figma.com/developers) - For accessing Figma designs
+
+## Acknowledgments
+
+- Thanks to the Figma team for providing a great API
+- Thanks to all contributors who help make this project better
+- Special thanks to the open-source community
+
+---
+
+Made with ❤️ by Open Nexus

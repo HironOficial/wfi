@@ -280,8 +280,8 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
                 Assets Preview ({selectedAssets.length}/{filteredAssets.length})
                 {prefixFilterEnabled && (
                   <span className="ml-2 text-sm text-muted-foreground">
-                    {filterMode === "whitelist" && prefixFilter && `Including prefix: &quot;${prefixFilter}&quot;`}
-                    {filterMode === "blacklist" && blacklistPrefix && `Excluding prefix: &quot;${blacklistPrefix}&quot;`}
+                    {filterMode === "whitelist" && prefixFilter && `Including prefix: "${prefixFilter}"`}
+                    {filterMode === "blacklist" && blacklistPrefix && `Excluding prefix: "${blacklistPrefix}"`}
                   </span>
                 )}
               </h3>
@@ -326,8 +326,8 @@ export default function AssetExplorer({ project, onReset }: AssetExplorerProps) 
                 <div className="text-muted-foreground mb-4 text-center">
                   {prefixFilterEnabled && (
                     <>
-                      {filterMode === "whitelist" && prefixFilter && `No assets found with prefix &quot;${prefixFilter}&quot;.`}
-                      {filterMode === "blacklist" && blacklistPrefix && `No assets found excluding prefix &quot;${blacklistPrefix}&quot;.`}
+                      {filterMode === "whitelist" && prefixFilter && `No assets found with prefix "${prefixFilter}".`}
+                      {filterMode === "blacklist" && blacklistPrefix && `No assets found excluding prefix "${blacklistPrefix}".`}
                     </>
                   )}
                 </div>

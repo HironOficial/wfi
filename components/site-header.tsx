@@ -23,7 +23,7 @@ export function SiteHeader() {
           <KofiButton variant="ghost" size="sm" />
           <ThemeToggle />
           <Button variant="ghost" size="icon" asChild>
-            <Link href="https://github.com/hiron" target="_blank" rel="noopener noreferrer">
+            <Link href="https://github.com/hironoficial" target="_blank" rel="noopener noreferrer">
               <Github className="h-5 w-5" />
               <span className="sr-only">GitHub</span>
             </Link>

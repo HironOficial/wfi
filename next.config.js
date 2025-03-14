@@ -17,6 +17,17 @@ const nextConfig = {
         fs: false,
       }
     }
+    config.experiments = {
+      ...config.experiments,
+      topLevelAwait: true,
+    }
+
+    // Add worker support
+    config.module.rules.push({
+      test: /\.worker\.(js|ts)$/,
+      use: { loader: 'worker-loader' },
+    })
+
     return config
   }
 }

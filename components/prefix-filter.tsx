@@ -123,7 +123,7 @@ export default function PrefixFilter({
                   ))
                 ) : (
                   <span className="text-sm text-muted-foreground">
-                    No {filterMode === "whitelist" ? "include" : "exclude"} rules added yet
+                    No &quot;{prefix}&quot; assets found
                   </span>
                 )}
               </div>
